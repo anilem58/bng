@@ -8,6 +8,7 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
 import java.io.IOException;
 
+// Handles the contact form page and submission
 @WebServlet("/contact")
 public class ContactServlet extends HttpServlet {
 
@@ -22,11 +23,13 @@ public class ContactServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
+        // Read and clean all form fields
         String name    = ValidationUtil.sanitize(req.getParameter("name"));
         String email   = ValidationUtil.sanitize(req.getParameter("email"));
         String subject = ValidationUtil.sanitize(req.getParameter("subject"));
         String message = ValidationUtil.sanitize(req.getParameter("message"));
 
+        // Validate all required fields
         if (ValidationUtil.isBlank(name) || !ValidationUtil.isValidEmail(email)
                 || ValidationUtil.isBlank(subject) || ValidationUtil.isBlank(message)) {
             req.setAttribute("error", "Please fill in all fields with valid data.");
@@ -41,6 +44,8 @@ public class ContactServlet extends HttpServlet {
             msg.setSubject(subject);
             msg.setMessage(message);
             contactDAO.insert(msg);
+
+            // Redirect to show a success message
             resp.sendRedirect(req.getContextPath() + "/contact?msg=sent");
         } catch (Exception e) {
             req.setAttribute("error", "Could not send your message. Please try again.");

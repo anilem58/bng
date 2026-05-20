@@ -4,6 +4,7 @@ import jakarta.servlet.*;
 import jakarta.servlet.annotation.WebFilter;
 import java.io.IOException;
 
+// Makes sure all requests and responses use UTF-8 (supports Nepali text etc.)
 @WebFilter("/*")
 public class EncodingFilter implements Filter {
 

@@ -9,13 +9,13 @@ import java.util.Properties;
 
 public class DBConnection {
 
-    private static final String PROPS_FILE = "/db.properties";
     private static final String url;
     private static final String username;
     private static final String password;
 
+    // Load database settings once from db.properties when the class is first used
     static {
-        try (InputStream in = DBConnection.class.getResourceAsStream(PROPS_FILE)) {
+        try (InputStream in = DBConnection.class.getResourceAsStream("/db.properties")) {
             if (in == null) {
                 throw new ExceptionInInitializerError("db.properties not found on classpath");
             }
@@ -30,8 +30,10 @@ public class DBConnection {
         }
     }
 
+    // Private constructor — no one should create an instance of this class
     private DBConnection() {}
 
+    // Call this anywhere you need a database connection
     public static Connection getConnection() throws SQLException {
         return DriverManager.getConnection(url, username, password);
     }

@@ -1,4 +1,5 @@
 package com.blissandglow.controller;
+package com.blissandglow.controller;
 
 import com.blissandglow.dao.ContactDAO;
 import com.blissandglow.model.Category;
@@ -12,11 +13,11 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
 import java.io.*;
 import java.math.BigDecimal;
-import java.nio.file.Paths;
 import java.util.UUID;
 
+// Handles all admin pages: dashboard, products, categories, users, orders, messages, reports
 @WebServlet("/admin/*")
-@MultipartConfig(maxFileSize = 5 * 1024 * 1024)
+@MultipartConfig(maxFileSize = 5 * 1024 * 1024) // allow image uploads up to 5MB
 public class AdminDashboardServlet extends HttpServlet {
 
     private final UserService    userService    = new UserService();
@@ -29,17 +30,18 @@ public class AdminDashboardServlet extends HttpServlet {
             throws ServletException, IOException {
         String path = req.getPathInfo();
         if (path == null) path = "/dashboard";
+
         switch (path) {
-            case "/dashboard"         -> showDashboard(req, resp);
-            case "/products"          -> showProducts(req, resp);
-            case "/products/add"      -> showAddProduct(req, resp);
-            case "/products/edit"     -> showEditProduct(req, resp);
-            case "/categories"        -> showCategories(req, resp);
-            case "/users"             -> showUsers(req, resp);
-            case "/orders"            -> showOrders(req, resp);
-            case "/orders/detail"     -> showOrderDetail(req, resp);
-            case "/messages"          -> showMessages(req, resp);
-            case "/reports"           -> showReports(req, resp);
+            case "/dashboard"     -> showDashboard(req, resp);
+            case "/products"      -> showProducts(req, resp);
+            case "/products/add"  -> showAddProduct(req, resp);
+            case "/products/edit" -> showEditProduct(req, resp);
+            case "/categories"    -> showCategories(req, resp);
+            case "/users"         -> showUsers(req, resp);
+            case "/orders"        -> showOrders(req, resp);
+            case "/orders/detail" -> showOrderDetail(req, resp);
+            case "/messages"      -> showMessages(req, resp);
+            case "/reports"       -> showReports(req, resp);
             default -> resp.sendError(HttpServletResponse.SC_NOT_FOUND);
         }
     }
@@ -49,6 +51,7 @@ public class AdminDashboardServlet extends HttpServlet {
             throws ServletException, IOException {
         String path = req.getPathInfo();
         if (path == null) path = "";
+
         switch (path) {
             case "/products/add"      -> handleAddProduct(req, resp);
             case "/products/edit"     -> handleEditProduct(req, resp);
@@ -64,28 +67,28 @@ public class AdminDashboardServlet extends HttpServlet {
         }
     }
 
-    // ── Dashboard ────────────────────────────────────────────────────────
+    // ── Dashboard ──────────────────────────────────────────────────────
 
     private void showDashboard(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         try {
-            req.setAttribute("totalUsers",    userService.countCustomers());
-            req.setAttribute("totalProducts", productService.countProducts());
-            req.setAttribute("totalOrders",   orderService.countOrders());
-            req.setAttribute("pendingUsers",  userService.countPending());
+            req.setAttribute("totalUsers",     userService.countCustomers());
+            req.setAttribute("pendingUsers",   userService.countPending());
+            req.setAttribute("totalProducts",  productService.countProducts());
+            req.setAttribute("totalOrders",    orderService.countOrders());
             req.setAttribute("unreadMessages", contactDAO.countUnread());
-            req.setAttribute("recentOrders",  orderService.getAllOrders());
-            req.getRequestDispatcher("/WEB-INF/views/admin/dashboard.jsp").forward(req, resp);
+            req.setAttribute("recentOrders",   orderService.getAllOrders());
+            forward(req, resp, "/WEB-INF/views/admin/dashboard.jsp");
         } catch (Exception e) { throw new ServletException(e); }
     }
 
-    // ── Products ─────────────────────────────────────────────────────────
+    // ── Products ───────────────────────────────────────────────────────
 
     private void showProducts(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         try {
             req.setAttribute("products", productService.getAll());
-            req.getRequestDispatcher("/WEB-INF/views/admin/manageProducts.jsp").forward(req, resp);
+            forward(req, resp, "/WEB-INF/views/admin/manageProducts.jsp");
         } catch (Exception e) { throw new ServletException(e); }
     }
 
@@ -93,7 +96,7 @@ public class AdminDashboardServlet extends HttpServlet {
             throws ServletException, IOException {
         try {
             req.setAttribute("categories", productService.getAllCategories());
-            req.getRequestDispatcher("/WEB-INF/views/admin/addProduct.jsp").forward(req, resp);
+            forward(req, resp, "/WEB-INF/views/admin/addProduct.jsp");
         } catch (Exception e) { throw new ServletException(e); }
     }
 
@@ -103,14 +106,14 @@ public class AdminDashboardServlet extends HttpServlet {
             int id = Integer.parseInt(req.getParameter("id"));
             req.setAttribute("product",    productService.getById(id));
             req.setAttribute("categories", productService.getAllCategories());
-            req.getRequestDispatcher("/WEB-INF/views/admin/editProduct.jsp").forward(req, resp);
+            forward(req, resp, "/WEB-INF/views/admin/editProduct.jsp");
         } catch (Exception e) { throw new ServletException(e); }
     }
 
     private void handleAddProduct(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         try {
-            Product p = buildProductFromRequest(req);
+            Product p = buildProduct(req);
             Part imagePart = req.getPart("image");
             if (imagePart != null && imagePart.getSize() > 0) {
                 p.setImagePath(saveImage(req, imagePart));
@@ -119,7 +122,7 @@ public class AdminDashboardServlet extends HttpServlet {
             if (err != null) {
                 req.setAttribute("error", err);
                 req.setAttribute("categories", productService.getAllCategories());
-                req.getRequestDispatcher("/WEB-INF/views/admin/addProduct.jsp").forward(req, resp);
+                forward(req, resp, "/WEB-INF/views/admin/addProduct.jsp");
                 return;
             }
             resp.sendRedirect(req.getContextPath() + "/admin/products?msg=added");
@@ -129,12 +132,13 @@ public class AdminDashboardServlet extends HttpServlet {
     private void handleEditProduct(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         try {
-            Product p = buildProductFromRequest(req);
+            Product p = buildProduct(req);
             p.setProductId(Integer.parseInt(req.getParameter("productId")));
             Part imagePart = req.getPart("image");
             if (imagePart != null && imagePart.getSize() > 0) {
                 p.setImagePath(saveImage(req, imagePart));
             } else {
+                // Keep the existing image if no new one was uploaded
                 p.setImagePath(req.getParameter("existingImage"));
             }
             String err = productService.updateProduct(p);
@@ -142,7 +146,7 @@ public class AdminDashboardServlet extends HttpServlet {
                 req.setAttribute("error", err);
                 req.setAttribute("product",    productService.getById(p.getProductId()));
                 req.setAttribute("categories", productService.getAllCategories());
-                req.getRequestDispatcher("/WEB-INF/views/admin/editProduct.jsp").forward(req, resp);
+                forward(req, resp, "/WEB-INF/views/admin/editProduct.jsp");
                 return;
             }
             resp.sendRedirect(req.getContextPath() + "/admin/products?msg=updated");
@@ -152,46 +156,47 @@ public class AdminDashboardServlet extends HttpServlet {
     private void handleDeleteProduct(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         try {
-            int id = Integer.parseInt(req.getParameter("productId"));
-            productService.deleteProduct(id);
+            productService.deleteProduct(Integer.parseInt(req.getParameter("productId")));
             resp.sendRedirect(req.getContextPath() + "/admin/products?msg=deleted");
         } catch (Exception e) { throw new ServletException(e); }
     }
 
-    private Product buildProductFromRequest(HttpServletRequest req) {
+    // Read product fields from the form
+    private Product buildProduct(HttpServletRequest req) {
         Product p = new Product();
         p.setName(req.getParameter("name"));
         p.setBrand(req.getParameter("brand"));
         p.setDescription(req.getParameter("description"));
         p.setSku(req.getParameter("sku"));
-        p.setCategoryId(Integer.parseInt(req.getParameter("categoryId")));
+        try { p.setCategoryId(Integer.parseInt(req.getParameter("categoryId"))); } catch (Exception e) {}
         try { p.setPrice(new BigDecimal(req.getParameter("price"))); } catch (Exception e) { p.setPrice(BigDecimal.ZERO); }
-        try { p.setStockQuantity(Integer.parseInt(req.getParameter("stockQuantity"))); } catch (Exception e) { p.setStockQuantity(0); }
+        try { p.setStockQuantity(Integer.parseInt(req.getParameter("stockQuantity"))); } catch (Exception e) {}
         return p;
     }
 
+    // Save an uploaded image file and return the web path
     private String saveImage(HttpServletRequest req, Part part) throws IOException {
         String uploadsDir = req.getServletContext().getRealPath("/assets/images/products");
         new File(uploadsDir).mkdirs();
-        String ext       = getExtension(part.getSubmittedFileName());
-        String filename  = UUID.randomUUID().toString() + ext;
+        String ext      = getFileExtension(part.getSubmittedFileName());
+        String filename = UUID.randomUUID().toString() + ext;
         part.write(uploadsDir + File.separator + filename);
         return "/assets/images/products/" + filename;
     }
 
-    private String getExtension(String filename) {
+    private String getFileExtension(String filename) {
         if (filename == null) return ".jpg";
         int dot = filename.lastIndexOf('.');
         return dot >= 0 ? filename.substring(dot) : ".jpg";
     }
 
-    // ── Categories ───────────────────────────────────────────────────────
+    // ── Categories ─────────────────────────────────────────────────────
 
     private void showCategories(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         try {
             req.setAttribute("categories", productService.getAllCategories());
-            req.getRequestDispatcher("/WEB-INF/views/admin/manageCategories.jsp").forward(req, resp);
+            forward(req, resp, "/WEB-INF/views/admin/manageCategories.jsp");
         } catch (Exception e) { throw new ServletException(e); }
     }
 
@@ -223,19 +228,18 @@ public class AdminDashboardServlet extends HttpServlet {
     private void handleDeleteCategory(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         try {
-            int id = Integer.parseInt(req.getParameter("categoryId"));
-            productService.deleteCategory(id);
+            productService.deleteCategory(Integer.parseInt(req.getParameter("categoryId")));
             resp.sendRedirect(req.getContextPath() + "/admin/categories");
         } catch (Exception e) { throw new ServletException(e); }
     }
 
-    // ── Users ────────────────────────────────────────────────────────────
+    // ── Users ──────────────────────────────────────────────────────────
 
     private void showUsers(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         try {
             req.setAttribute("users", userService.getAllUsers());
-            req.getRequestDispatcher("/WEB-INF/views/admin/manageUsers.jsp").forward(req, resp);
+            forward(req, resp, "/WEB-INF/views/admin/manageUsers.jsp");
         } catch (Exception e) { throw new ServletException(e); }
     }
 
@@ -255,13 +259,13 @@ public class AdminDashboardServlet extends HttpServlet {
         } catch (Exception e) { throw new ServletException(e); }
     }
 
-    // ── Orders ───────────────────────────────────────────────────────────
+    // ── Orders ─────────────────────────────────────────────────────────
 
     private void showOrders(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         try {
             req.setAttribute("orders", orderService.getAllOrders());
-            req.getRequestDispatcher("/WEB-INF/views/admin/manageOrders.jsp").forward(req, resp);
+            forward(req, resp, "/WEB-INF/views/admin/manageOrders.jsp");
         } catch (Exception e) { throw new ServletException(e); }
     }
 
@@ -270,7 +274,7 @@ public class AdminDashboardServlet extends HttpServlet {
         try {
             int id = Integer.parseInt(req.getParameter("id"));
             req.setAttribute("order", orderService.getOrderById(id));
-            req.getRequestDispatcher("/WEB-INF/views/admin/orderDetail.jsp").forward(req, resp);
+            forward(req, resp, "/WEB-INF/views/admin/orderDetail.jsp");
         } catch (Exception e) { throw new ServletException(e); }
     }
 
@@ -283,13 +287,13 @@ public class AdminDashboardServlet extends HttpServlet {
         } catch (Exception e) { throw new ServletException(e); }
     }
 
-    // ── Contact messages ─────────────────────────────────────────────────
+    // ── Contact Messages ───────────────────────────────────────────────
 
     private void showMessages(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         try {
             req.setAttribute("messages", contactDAO.findAll());
-            req.getRequestDispatcher("/WEB-INF/views/admin/contactMessages.jsp").forward(req, resp);
+            forward(req, resp, "/WEB-INF/views/admin/contactMessages.jsp");
         } catch (Exception e) { throw new ServletException(e); }
     }
 
@@ -301,16 +305,23 @@ public class AdminDashboardServlet extends HttpServlet {
         } catch (Exception e) { throw new ServletException(e); }
     }
 
-    // ── Reports ──────────────────────────────────────────────────────────
+    // ── Reports ────────────────────────────────────────────────────────
 
     private void showReports(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         try {
-            req.setAttribute("topProducts",    productService.getTopOrderedProducts(5));
+            req.setAttribute("topProducts",     productService.getTopOrderedProducts(5));
             req.setAttribute("salesByCategory", productService.getSalesByCategory());
-            req.setAttribute("stockReport",    productService.getStockReport());
-            req.setAttribute("totalRevenue",   orderService.totalRevenue());
-            req.getRequestDispatcher("/WEB-INF/views/admin/reports.jsp").forward(req, resp);
+            req.setAttribute("stockReport",     productService.getStockReport());
+            req.setAttribute("totalRevenue",    orderService.totalRevenue());
+            forward(req, resp, "/WEB-INF/views/admin/reports.jsp");
         } catch (Exception e) { throw new ServletException(e); }
+    }
+
+    // ── Helper ─────────────────────────────────────────────────────────
+
+    private void forward(HttpServletRequest req, HttpServletResponse resp, String path)
+            throws ServletException, IOException {
+        req.getRequestDispatcher(path).forward(req, resp);
     }
 }

@@ -10,10 +10,10 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 
+// Handles the shopping cart and order placement/cancellation
 @WebServlet("/user/order")
 public class OrderServlet extends HttpServlet {
 
@@ -24,10 +24,11 @@ public class OrderServlet extends HttpServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         String action = req.getParameter("action");
+
         if ("detail".equals(action)) {
-            showDetail(req, resp);
+            showOrderDetail(req, resp);
         } else if ("cart".equals(action)) {
-            showCart(req, resp);
+            forward(req, resp, "/WEB-INF/views/user/cart.jsp");
         } else {
             resp.sendRedirect(req.getContextPath() + "/user/orders");
         }
@@ -46,44 +47,48 @@ public class OrderServlet extends HttpServlet {
         }
     }
 
-    private void showCart(HttpServletRequest req, HttpServletResponse resp)
-            throws ServletException, IOException {
-        req.getRequestDispatcher("/WEB-INF/views/user/cart.jsp").forward(req, resp);
-    }
+    // ── Pages ──────────────────────────────────────────────────────────
 
-    private void showDetail(HttpServletRequest req, HttpServletResponse resp)
+    private void showOrderDetail(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         try {
             int orderId = Integer.parseInt(req.getParameter("id"));
-            int userId  = SessionUtil.getUser(req.getSession()).getUserId();
+            int userId  = getLoggedInUserId(req);
             Order order = orderService.getOrderById(orderId);
+
+            // Make sure the order belongs to this customer
             if (order == null || order.getUserId() != userId) {
                 resp.sendError(HttpServletResponse.SC_NOT_FOUND);
                 return;
             }
             req.setAttribute("order", order);
-            req.getRequestDispatcher("/WEB-INF/views/user/orderDetail.jsp").forward(req, resp);
+            forward(req, resp, "/WEB-INF/views/user/orderDetail.jsp");
         } catch (Exception e) { throw new ServletException(e); }
     }
+
+    // ── Cart Actions ───────────────────────────────────────────────────
 
     @SuppressWarnings("unchecked")
     private void addToCart(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         try {
             int productId = Integer.parseInt(req.getParameter("productId"));
-            int qty       = Integer.parseInt(req.getParameter("qty") != null ? req.getParameter("qty") : "1");
-            if (qty < 1) qty = 1;
+            int qty       = parseQty(req.getParameter("qty"));
 
             Product product = productService.getById(productId);
+
+            // Check the product exists and has enough stock
             if (product == null || product.getStockQuantity() < qty) {
-                resp.sendRedirect(req.getContextPath() + "/products?action=detail&id=" + productId + "&error=no_stock");
+                resp.sendRedirect(req.getContextPath() + "/products?action=detail&id=" + productId);
                 return;
             }
 
+            // Get or create the cart in the session
             HttpSession session = req.getSession(true);
             List<OrderItem> cart = (List<OrderItem>) session.getAttribute("cart");
             if (cart == null) cart = new ArrayList<>();
 
+            // If item already in cart, increase quantity
             boolean found = false;
             for (OrderItem item : cart) {
                 if (item.getProductId() == productId) {
@@ -92,6 +97,8 @@ public class OrderServlet extends HttpServlet {
                     break;
                 }
             }
+
+            // Otherwise add as a new item
             if (!found) {
                 OrderItem item = new OrderItem();
                 item.setProductId(productId);
@@ -101,6 +108,7 @@ public class OrderServlet extends HttpServlet {
                 item.setQuantity(qty);
                 cart.add(item);
             }
+
             session.setAttribute("cart", cart);
             resp.sendRedirect(req.getContextPath() + "/user/order?action=cart");
         } catch (Exception e) { throw new ServletException(e); }
@@ -115,6 +123,7 @@ public class OrderServlet extends HttpServlet {
             resp.sendRedirect(req.getContextPath() + "/user/order?action=cart");
             return;
         }
+
         HttpSession session = req.getSession(false);
         if (session != null) {
             List<OrderItem> cart = (List<OrderItem>) session.getAttribute("cart");
@@ -128,19 +137,25 @@ public class OrderServlet extends HttpServlet {
             throws ServletException, IOException {
         try {
             HttpSession session = req.getSession(false);
-            List<OrderItem> cart = session != null ? (List<OrderItem>) session.getAttribute("cart") : null;
+            List<OrderItem> cart = session != null
+                ? (List<OrderItem>) session.getAttribute("cart") : null;
+
             if (cart == null || cart.isEmpty()) {
                 resp.sendRedirect(req.getContextPath() + "/user/order?action=cart");
                 return;
             }
+
             String address = req.getParameter("shippingAddress");
             if (address == null || address.isBlank()) {
                 req.setAttribute("cartError", "Please provide a shipping address.");
-                req.getRequestDispatcher("/WEB-INF/views/user/cart.jsp").forward(req, resp);
+                forward(req, resp, "/WEB-INF/views/user/cart.jsp");
                 return;
             }
-            int userId  = SessionUtil.getUser(session).getUserId();
+
+            int userId  = getLoggedInUserId(req);
             int orderId = orderService.placeOrder(userId, cart, address);
+
+            // Clear the cart after a successful order
             session.removeAttribute("cart");
             resp.sendRedirect(req.getContextPath() + "/user/order?action=detail&id=" + orderId + "&msg=placed");
         } catch (Exception e) { throw new ServletException(e); }
@@ -150,9 +165,27 @@ public class OrderServlet extends HttpServlet {
             throws ServletException, IOException {
         try {
             int orderId = Integer.parseInt(req.getParameter("orderId"));
-            int userId  = SessionUtil.getUser(req.getSession()).getUserId();
+            int userId  = getLoggedInUserId(req);
             orderService.cancelOrder(orderId, userId);
             resp.sendRedirect(req.getContextPath() + "/user/orders?msg=cancelled");
         } catch (Exception e) { throw new ServletException(e); }
+    }
+
+    // ── Helpers ────────────────────────────────────────────────────────
+
+    private int getLoggedInUserId(HttpServletRequest req) {
+        return SessionUtil.getUser(req.getSession()).getUserId();
+    }
+
+    private int parseQty(String value) {
+        try {
+            int q = Integer.parseInt(value);
+            return q < 1 ? 1 : q;
+        } catch (Exception e) { return 1; }
+    }
+
+    private void forward(HttpServletRequest req, HttpServletResponse resp, String path)
+            throws ServletException, IOException {
+        req.getRequestDispatcher(path).forward(req, resp);
     }
 }

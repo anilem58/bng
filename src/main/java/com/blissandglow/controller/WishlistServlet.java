@@ -7,6 +7,7 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
 import java.io.IOException;
 
+// Handles viewing, adding, and removing wishlist items
 @WebServlet("/user/wishlist")
 public class WishlistServlet extends HttpServlet {
 
@@ -19,9 +20,7 @@ public class WishlistServlet extends HttpServlet {
             int userId = SessionUtil.getUser(req.getSession()).getUserId();
             req.setAttribute("wishlistItems", wishlistService.getWishlist(userId));
             req.getRequestDispatcher("/WEB-INF/views/user/wishlist.jsp").forward(req, resp);
-        } catch (Exception e) {
-            throw new ServletException(e);
-        }
+        } catch (Exception e) { throw new ServletException(e); }
     }
 
     @Override
@@ -29,22 +28,25 @@ public class WishlistServlet extends HttpServlet {
             throws ServletException, IOException {
         String action = req.getParameter("action");
         int productId;
-        try { productId = Integer.parseInt(req.getParameter("productId")); }
-        catch (NumberFormatException e) {
+        try {
+            productId = Integer.parseInt(req.getParameter("productId"));
+        } catch (NumberFormatException e) {
             resp.sendRedirect(req.getContextPath() + "/user/wishlist");
             return;
         }
+
         int userId = SessionUtil.getUser(req.getSession()).getUserId();
         try {
             if ("remove".equals(action)) {
                 wishlistService.remove(userId, productId);
             } else {
+                // Default action: toggle — add if not there, remove if already there
                 wishlistService.toggle(userId, productId);
             }
-        } catch (Exception e) {
-            throw new ServletException(e);
-        }
-        String ref = req.getHeader("Referer");
-        resp.sendRedirect(ref != null ? ref : req.getContextPath() + "/user/wishlist");
+        } catch (Exception e) { throw new ServletException(e); }
+
+        // Go back to wherever the user came from
+        String referer = req.getHeader("Referer");
+        resp.sendRedirect(referer != null ? referer : req.getContextPath() + "/user/wishlist");
     }
 }

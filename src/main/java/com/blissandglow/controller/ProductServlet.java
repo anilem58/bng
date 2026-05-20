@@ -9,80 +9,84 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
 import java.io.IOException;
 
+// Handles the shop page, product detail page, and search
 @WebServlet("/products")
 public class ProductServlet extends HttpServlet {
 
     private final ProductService  productService  = new ProductService();
     private final WishlistService wishlistService = new WishlistService();
 
+    // Category IDs from the database
+    private static final int[] SKINCARE_IDS = {1, 2, 3, 4, 7};
+    private static final int[] MAKEUP_IDS   = {5, 6};
+    private static final int[] HAIRCARE_IDS = {8};
+
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         String action = req.getParameter("action");
+
         if ("detail".equals(action)) {
-            showDetail(req, resp);
+            showProductDetail(req, resp);
         } else if ("search".equals(action)) {
-            showSearch(req, resp);
+            showSearchResults(req, resp);
         } else {
-            showList(req, resp);
+            showProductList(req, resp);
         }
     }
 
-    // Skincare: Cleansers(1), Moisturizers(2), Serums(3), Sunscreen(4), Body Care(7)
-    private static final int[] SKINCARE_IDS = {1, 2, 3, 4, 7};
-    // Makeup: Lip Care(5), Makeup(6)
-    private static final int[] MAKEUP_IDS   = {5, 6};
-    // Haircare: Haircare(8)
-    private static final int[] HAIRCARE_IDS = {8};
-
-    private void showList(HttpServletRequest req, HttpServletResponse resp)
+    // Show all products grouped by category
+    private void showProductList(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         try {
             req.setAttribute("skincareProducts", productService.getByCategories(SKINCARE_IDS));
             req.setAttribute("makeupProducts",   productService.getByCategories(MAKEUP_IDS));
             req.setAttribute("haircareProducts", productService.getByCategories(HAIRCARE_IDS));
-            req.getRequestDispatcher("/WEB-INF/views/user/products.jsp").forward(req, resp);
-        } catch (Exception e) {
-            throw new ServletException(e);
-        }
+            forward(req, resp, "/WEB-INF/views/user/products.jsp");
+        } catch (Exception e) { throw new ServletException(e); }
     }
 
-    private void showDetail(HttpServletRequest req, HttpServletResponse resp)
+    // Show a single product's full detail page
+    private void showProductDetail(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         try {
-            int productId = parseIntParam(req.getParameter("id"), 0);
+            int productId = parseId(req.getParameter("id"));
             Product product = productService.getById(productId);
+
             if (product == null) {
                 resp.sendError(HttpServletResponse.SC_NOT_FOUND);
                 return;
             }
             req.setAttribute("product", product);
 
+            // Check if this product is in the logged-in customer's wishlist
             HttpSession session = req.getSession(false);
-            if (SessionUtil.isLoggedIn(session)) {
+            if (SessionUtil.isLoggedIn(session) && SessionUtil.isCustomer(session)) {
                 int userId = SessionUtil.getUser(session).getUserId();
                 req.setAttribute("inWishlist", wishlistService.isInWishlist(userId, productId));
             }
-            req.getRequestDispatcher("/WEB-INF/views/user/productDetails.jsp").forward(req, resp);
-        } catch (Exception e) {
-            throw new ServletException(e);
-        }
+            forward(req, resp, "/WEB-INF/views/user/productDetails.jsp");
+        } catch (Exception e) { throw new ServletException(e); }
     }
 
-    private void showSearch(HttpServletRequest req, HttpServletResponse resp)
+    // Show search results for a keyword
+    private void showSearchResults(HttpServletRequest req, HttpServletResponse resp)
             throws ServletException, IOException {
         try {
             String keyword = req.getParameter("q");
             req.setAttribute("products", productService.search(keyword));
             req.setAttribute("keyword",  keyword);
-            req.getRequestDispatcher("/WEB-INF/views/user/search.jsp").forward(req, resp);
-        } catch (Exception e) {
-            throw new ServletException(e);
-        }
+            forward(req, resp, "/WEB-INF/views/user/search.jsp");
+        } catch (Exception e) { throw new ServletException(e); }
     }
 
-    private int parseIntParam(String value, int defaultValue) {
+    private int parseId(String value) {
         try { return Integer.parseInt(value); }
-        catch (Exception e) { return defaultValue; }
+        catch (Exception e) { return 0; }
+    }
+
+    private void forward(HttpServletRequest req, HttpServletResponse resp, String path)
+            throws ServletException, IOException {
+        req.getRequestDispatcher(path).forward(req, resp);
     }
 }
