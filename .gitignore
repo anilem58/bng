@@ -1,0 +1,23 @@
+# Maven build output
+target/
+*.war
+
+# IDE - IntelliJ only
+.idea/
+*.iml
+
+# Claude Code
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Local DB config — copy db.properties.example to db.properties and fill in your password
+src/main/resources/db.properties
+
+# Tomcat work dir
+work/

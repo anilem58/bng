@@ -1,0 +1,19 @@
+package com.blissandglow.util;
+
+import org.mindrot.jbcrypt.BCrypt;
+
+public class PasswordUtil {
+
+    private PasswordUtil() {}
+
+    /** Hash a plain-text password with BCrypt (work factor 12). */
+    public static String hash(String plainPassword) {
+        return BCrypt.hashpw(plainPassword, BCrypt.gensalt(12));
+    }
+
+    /** Verify a plain-text password against a stored BCrypt hash. */
+    public static boolean verify(String plainPassword, String hashedPassword) {
+        if (hashedPassword == null || !hashedPassword.startsWith("$2")) return false;
+        return BCrypt.checkpw(plainPassword, hashedPassword);
+    }
+}
